@@ -7,6 +7,7 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(tidyverse, ggplot2, dplyr, groupdata2, zscorer, caTools)
 ```
 
 # Building on the shoulders of giants: meta-analysis
@@ -38,7 +39,7 @@ Prisma chart: https://www.dropbox.com/s/vbjf6ff73dv9tru/PRISMA%202009%20flow%20d
 
 # Preprocess data 
 ```{r}
-
+data <- read_excel("data.xlsx")
 ```
 
 

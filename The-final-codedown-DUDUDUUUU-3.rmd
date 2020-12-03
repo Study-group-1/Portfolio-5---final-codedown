@@ -1,0 +1,187 @@
+---
+title: "Assignment 5 - The Final Codedown, Meta-analysis of pitch in schizophrenia"
+author: "Gustav, Magnus, Morten, Nicoline, Tobias"
+date: "3/7/2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Building on the shoulders of giants: meta-analysis
+Data: https://www.dropbox.com/s/0l9ur0gaabr80a8/Matrix_MetaAnalysis_Diagnosis_updated290719.xlsx?dl=0
+Prisma chart: https://www.dropbox.com/s/vbjf6ff73dv9tru/PRISMA%202009%20flow%20diagram_PP.pptx?dl=0 
+
+1. Build a forest plot of the results (forest(model))
+ 
+2. Go back to Assignment 3, add your own study to the data table, and re-run meta-analysis. Do the results change?
+
+3. Now look at the output of rma() and check tau and I2
+
+```{r}
+# Loading packages and data (Tobias)
+library(pacman)
+pacman::p_load(metafor, readxl, tidyverse)
+df <- read_excel('Matrix_MetaAnalysis_Diagnosis_updated290719.xlsx')
+
+# Renaming column headers in dataframe and selecting what we need in our analysis (Nicoline) 
+df <- df %>% rename(
+  article = ArticleID,
+  study = StudyID,
+  specification = Specification,
+  title = Title,
+  authors = Authors,
+  published = Year_publication,
+  citation = Article,
+  diagnosis = DIAGNOSIS,
+  con_mean = PITCH_F0_HC_M,
+  schiz_mean = PITCH_F0_SZ_M,
+  con_sd = PITCH_F0_HC_SD,
+  schiz_sd = PITCH_F0_SZ_SD,
+  con_sd_mean = PITCH_F0SD_HC_M,
+  schiz_sd_mean = PITCH_F0SD_SZ_M,
+  con_sd_sd = PITCH_F0SD_HC_SD,
+  schiz_sd_sd = PITCH_F0SD_SZ_SD,
+  schizophrenia = SAMPLE_SIZE_SZ,
+  control = SAMPLE_SIZE_HC
+) %>% select(article,
+             study,
+             specification,
+             title,
+             authors,
+             published,
+             citation,
+             diagnosis,
+             con_mean,
+             schiz_mean,
+             con_sd,
+             schiz_sd,
+             con_sd_mean,
+             schiz_sd_mean,
+             con_sd_sd,
+             schiz_sd_sd,
+             schizophrenia,
+             control)
+
+#Using the escalc function to get effect sizes for both mean and standard deviation (Magnus)
+df_2 <- escalc(n1i = control,
+             n2i = schizophrenia,
+             m1i = con_mean,
+             m2i = schiz_mean,
+             sd1i = con_sd,
+             sd2i = schiz_sd,
+             data = df,
+             measure = 'SMD',
+             append = TRUE)
+
+df_3 <- escalc(n1i = control,
+             n2i = schizophrenia,
+             m1i = con_sd_mean,
+             m2i = schiz_sd_mean,
+             sd1i = con_sd_sd,
+             sd2i = schiz_sd_sd,
+             data = df,
+             measure = 'SMD',
+             append = TRUE)
+
+# Making lmer models (Gustav)
+model_mean <- lmer(yi ~ 1 + (1|Study), PitchMean_ES, weights = 1/vi, REML=F, control = lmerControl(check.nobs.vs.nlev="ignore", check.nobs.vs.nRE="ignore"))
+
+model_sd <- lmer(yi ~ 1 + (1|Study), PitchSD_ES, weights = 1/vi, REML=F, control = lmerControl(check.nobs.vs.nlev="ignore", check.nobs.vs.nRE="ignore"))
+# Agreeing on the fact that it is not a good idea to use lmer models in this case ;) 
+
+# Making pretty rma models instead!(Morten)
+ma_1 <- rma(yi, vi, data = df_2)
+ma_2 <- rma(yi, vi, data = df_3)
+summary(ma_1)
+summary(ma_2)
+
+# Making forest plots (Tobias)
+forest(ma_1, slab = paste(df$citation))
+forest(ma_2, slab = paste(df$citation))
+```
+
+
+2. Do the results match your own analysis from Assignment 3? If you add your results to the meta-analysis, do the estimated effect sizes change? Report the new estimates and the new forest plots.
+```{r}
+# Loading our data from assignment 3 into R (Tobias)
+pitch_data <- read_csv("use_da_data.csv") 
+
+# We need the different measures from assignment 3 in order to get them into the metaanalysis (Nicoline)
+pitch_mean <- pitch_data %>% 
+  group_by(subject) %>% 
+  summarize(mean_pitch = mean(mean, na.rm = T), 
+            mean_sd = mean(sd, na.rm = T),
+            diagnosis = mean(diagnosis))
+
+pitch_mean_group <- pitch_mean %>% 
+  group_by(diagnosis) %>% 
+  summarise(mean_pitch = mean(mean_pitch, na.rm = T), 
+            mean_sd = mean(mean_sd, na.rm = T))
+
+pitch_sd <- pitch_data %>% 
+  group_by(subject) %>% 
+  summarize(sd_mean = sd(mean, na.rm = T), 
+            sd_sd = sd(sd, na.rm = T),
+            diagnosis = mean(diagnosis))
+
+pitch_sd_group <- pitch_sd %>% 
+  group_by(diagnosis) %>% 
+  summarise(sd_sd_mean = sd(sd_mean, na.rm = T), 
+            sd_sd_sd = sd(sd_sd, na.rm = T))
+
+sum(pitch_data$diagnosis == 0)
+# 116 diagnosis 0
+sum(pitch_data$diagnosis == 1)
+# 105 diagnosis 1 = schiz
+
+#Making the dataframe for our study results (Magnus)
+de <- data.frame(NA, '51', NA, NA, 'Bom, Magnus, Gade, Morten, Hansen, Grønhøi, Metzsch, Gustav, Schmidt, Nicoline.', '2020', 'Metzsch et al (2020)', NA, 162.4905, 153.9958, 35.69862, 24.01674, 17.40874, 17.07090, 21.71260, 21.11099, 105, 116)
+names(de) <- c('article', 'study', 'specification', 'title', 'authors', 'published', 'citation', 'diagnosis', 'con_mean', 'schiz_mean', 'con_sd', 'schiz_sd', 'con_sd_mean', 'schiz_sd_mean', 'con_sd_sd', 'schiz_sd_sd', 'schizophrenia', 'control')
+
+# Binding our results with the dataset from metaanalysis (Tobias)
+new_df <- rbind(df, de)
+
+# Using the escalc function on our study results + all studies within metanalysis (Morten)
+new_df_2 <- escalc(n1i = control,
+             n2i = schizophrenia,
+             m1i = con_mean,
+             m2i = schiz_mean,
+             sd1i = con_sd,
+             sd2i = schiz_sd,
+             data = new_df,
+             measure = 'SMD',
+             append = TRUE)
+
+new_df_3 <- escalc(n1i = control,
+             n2i = schizophrenia,
+             m1i = con_sd_mean,
+             m2i = schiz_sd_mean,
+             sd1i = con_sd_sd,
+             sd2i = schiz_sd_sd,
+             data = new_df,
+             measure = 'SMD',
+             append = TRUE)
+
+# Making the rma models on our own study (Gustav) 
+ma_3 <- rma(yi, vi, data = new_df_2)
+ma_4 <- rma(yi, vi, data = new_df_3)
+summary(ma_3)
+summary(ma_4)
+
+# Making forest plots for our own study (Nicoline) 
+forest(ma_3, slab = paste(new_df_2$citation))
+forest(ma_4, slab = paste(new_df_3$citation))
+```
+
+
+3. Assess the quality of the literature: report and comment on heterogeneity of the studies (tau, I2), on publication bias (funnel plot), and on influential studies.
+```{r}
+# Assessing quality of the literature by using the functions we learned about in the lecture (Gustav)
+funnel(ma_2) #funnel plot 
+ranktest(ma_2) #Kendall's tau 
+inf <- influence(ma_2) #Influential studies
+print(inf)
+plot(inf)
+```
